@@ -1,0 +1,278 @@
+const { request, query } = require('express');
+const Post = require('../models/post');
+const Comment = require('../models/comment');
+const checkLogIn = require('../middleware/checkLogin');
+
+
+
+
+
+
+
+// const categories = () =>{
+//     const posts = Post.find();
+//     const sorted = posts.reduce((result, post) => {
+//         const a = result.find(({ category }) => category === post.category);
+//         a ? a.post.push(post) : result.push({ category: post.category, post: [post] });
+//         return result;
+//     }, []);
+//     return sorted;
+// }
+
+
+// categories here
+
+
+
+
+
+exports.categories = async (req, res, next) => {
+
+    try {
+        const categories = await Post.find();
+        const cats = categories ? categories.reduce((catMemo, { category, title, _id }) => {
+            (catMemo[category] = catMemo[category] || []).push([title, _id]);
+            return catMemo;
+        }, {}) : null;
+        res.status(200).json({
+            success: true,
+            categories: cats
+        })
+
+
+    }
+    catch (error) {
+        console.log("I am error", error);
+        res.status(500).json({
+            message: "error"
+        })
+
+    }
+}
+
+
+
+
+
+//to create a new post
+"TODO:: ERROE ON FORM DATA"
+
+exports.createBlog = async (req, res, next) => {
+    try {
+        // const data = req.body.blog;
+        // console.log("blog create request body-->", req);
+        // const post = await Post.create(data);
+        // console.log(req.body);
+        const post = new Post({
+            category: req.body.category,
+            tags: req.body.tags,
+            title: req.body.title,
+            description: req.body.description,
+            author: req.body.author,
+            content: req.body.content,
+            image: req.file.filename
+        })
+        post.save();
+        res.status(201).json({
+            success: true,
+            message: 'Blog Successfully added',
+            post
+        })
+
+    }
+    catch (error) {
+        console.log('err', error);
+        res.status(500).json({
+            message: "error"
+        })
+
+    }
+
+}
+
+//to get all posts
+exports.getAllBlogs = async (request, response, next) => {
+    let k = request.query.keyword;
+    let p = request.query.page;
+    try {
+        if (k == undefined && p == undefined) {
+            const page = 1;
+            const limit = 5;
+            const total = await Post.countDocuments();
+            const pages = Math.ceil(total / limit);
+            const startIndex = (page - 1) * limit;
+            const posts = await Post.find().sort({ 'update_at': -1 }).limit(limit).skip(startIndex);
+            response.status(200).json(
+                {
+                    success: true,
+                    count: posts.length,
+                    posts,
+                    pages,
+                    page
+                }
+            )
+        }
+
+        else if (k + 10 == 10) {
+
+            const page = request.query.page;
+            const limit = 5;
+            const total = await Post.countDocuments();
+            const pages = Math.ceil(total / limit);
+            const startIndex = (page - 1) * limit;
+            const posts = await Post.find().sort({ 'update_at': -1 }).limit(limit).skip(startIndex).exec();
+            response.status(200).json(
+                {
+                    success: true,
+                    count: posts.length,
+                    posts,
+                    pages,
+                    page
+                }
+            )
+        }
+        else {
+            const page = request.query.page;
+            const limit = 5;
+            const startIndex = (page - 1) * limit
+            let query = String(k);
+            const p = await Post.find(
+                {
+                    "$or": [
+                        { title: { $regex: query } },
+                        { description: { $regex: query } }
+                    ]
+                }
+            )
+            const pages = Math.ceil(p.length / limit)
+            const posts = await Post.find(
+                {
+                    "$or": [
+                        { title: { $regex: query } },
+                        { description: { $regex: query } }
+                    ]
+                }
+            ).sort({ 'update_at': -1 }).limit(limit).skip(startIndex).exec();
+            response.status(200).json(
+                {
+                    success: true,
+                    count: posts.length,
+                    posts,
+                    pages,
+                    page
+                }
+            )
+
+        }
+    }
+    catch (error) {
+        console.log("error", error);
+        response.status(500).json({
+            message: "server error"
+        });
+
+    }
+}
+
+//for getting post details
+
+exports.getBlogById = async (request, response, next) => {
+    //const id = request.params.id;
+    //console.log("Id ::: ", id);
+  
+    try {
+        const post = await Post.findById(_id = request.params.id).populate('comment');
+        //TO DO HERE
+        const comment = await Comment.find({ post: request.params.id }).populate('user').populate('reply').populate({
+            path: 'reply',
+            populate: {
+                path: 'user',
+            }
+        });
+
+        response.json({
+            "post": post,
+            "comment": comment
+        });
+    }
+    catch (error) {
+        response.status(500).json({
+            message: "server error"
+        });
+
+    }
+
+
+}
+
+exports.deleteBlog = async (request, response, next) => {
+    try {
+        const post = await Post.findByIdAndRemove(request.params.id);
+        response.status(300).json({
+            post
+        })
+
+    }
+    catch (error) {
+        response.status(500).json(
+            {
+                message: "server error"
+            }
+        )
+
+    }
+}
+
+exports.editBlogById = async (request, response, next) => {
+    try {
+        const post = await Post.findById(_id = request.params.id);
+        response.json(post);
+        console.log("Hellow world");
+    }
+    catch (error) {
+
+    }
+}
+
+exports.updateBlog = async (request, response, next) => {
+    try {
+        const id = request.params.id;
+        const get_blog = request.body;
+        // console.log("Id Avatar 2 2 2 2 2 : ",id, blog);
+        const { category, title, description, tags, author, content } = get_blog;
+        const blog = new Post({
+            _id: id,
+            category: category,
+            title: title,
+            description: description,
+            tags: tags,
+            author: author,
+            content: content
+        });
+
+        Post.updateOne({ _id: request.params.id }, blog).then(
+            () => {
+                res.status(200).json({
+                    message: 'blog updated successfully!'
+                });
+                console.log("success");
+            }
+        ).catch(
+            (error) => {
+                // res.status(400).json({
+                //     error: error
+                // });
+                console.log("error");
+            }
+        );
+
+
+
+    }
+    catch (error) {
+        console.log("Error", error);
+
+    }
+}
+
+
