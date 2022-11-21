@@ -66,7 +66,7 @@ const HomeScreen = () =>{
                         <div>
                                 {blogs ? blogs.map(data => (
                         <div key={data.id}>
-                            <Blog blog={data}/>
+                            <Blog blog={data} high={keyword}/>
                         </div>
                     )) : null}
                     </div>
